@@ -1,0 +1,69 @@
+name: Build & Release Medi-Time TWA
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout repo
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: Set up Node.js
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      # Step 3: Install Bubblewrap CLI
+      - name: Install Bubblewrap CLI
+        run: npm install -g @bubblewrap/cli
+
+      # Step 4: Install JDK 17 (Bubblewrap requires it)
+      - name: Install JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # Step 5: Get last Git tag
+      - name: Get last tag
+        id: tag
+        run: |
+          git fetch --tags
+          LAST_TAG=$(git describe --tags --abbrev=0 || echo "v0.0.0")
+          echo "LAST_TAG=$LAST_TAG" >> $GITHUB_ENV
+
+      # Step 6: Increment patch version
+      - name: Increment patch version
+        id: newtag
+        run: |
+          IFS='.' read -r major minor patch <<<"${LAST_TAG#v}"
+          patch=$((patch + 1))
+          NEW_TAG="v$major.$minor.$patch"
+          echo "NEW_TAG=$NEW_TAG" >> $GITHUB_ENV
+
+      # Step 7: Build TWA (APK + AAB)
+      - name: Build TWA
+        run: |
+          bubblewrap build
+
+      # Step 8: Upload artifacts as GitHub Release
+      - name: Create GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ env.NEW_TAG }}
+          name: ${{ env.NEW_TAG }}
+          body: "Automated release of Medi-Time TWA version ${{ env.NEW_TAG }}"
+          artifacts: |
+            ./build/*.apk
+            ./build/*.aab
+          draft: false
+          prerelease: false
