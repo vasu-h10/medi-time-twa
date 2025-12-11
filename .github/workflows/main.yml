@@ -1,9 +1,6 @@
 name: Build & Release Medi-Time TWA
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 jobs:
@@ -11,70 +8,30 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repo
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # 2. Set up Node.js
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: '18'
 
-      # 3. Install Bubblewrap CLI
       - name: Install Bubblewrap CLI
         run: npm install -g @bubblewrap/cli
 
-      # 4. Install JDK 17
       - name: Install JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      # 5. Get last Git tag or default
-      - name: Get last tag
-        id: tag
-        run: |
-          git fetch --tags
-          LAST_TAG=$(git describe --tags --abbrev=0 || echo "v0.0.0")
-          echo "LAST_TAG=$LAST_TAG" >> $GITHUB_ENV
-
-      # 6. Increment patch version
-      - name: Increment patch version
-        id: newtag
-        run: |
-          IFS='.' read -r major minor patch <<<"${LAST_TAG#v}"
-          patch=$((patch + 1))
-          NEW_TAG="v$major.$minor.$patch"
-          echo "NEW_TAG=$NEW_TAG" >> $GITHUB_ENV
-          echo "New tag: $NEW_TAG"
-
-      # 7. Update TWA manifest.json version
-      - name: Update manifest.json version
-        run: |
-          MANIFEST_FILE="medi-time-twa/manifest.json"
-          VERSION="${NEW_TAG#v}"
-          echo "Updating $MANIFEST_FILE version to $VERSION"
-          jq --arg v "$VERSION" '.version = $v' "$MANIFEST_FILE" > tmp.json && mv tmp.json "$MANIFEST_FILE"
-        shell: bash
-
-      # 8. Build TWA (APK + AAB)
       - name: Build TWA
         run: |
-          cd medi-time-twa
           bubblewrap build
 
-      # 9. Create GitHub release with artifacts
       - name: Create GitHub Release
         uses: ncipollo/release-action@v1
         with:
-          tag: ${{ env.NEW_TAG }}
-          name: ${{ env.NEW_TAG }}
-          body: "Automated release of Medi-Time TWA version ${{ env.NEW_TAG }}"
-          artifacts: |
-            medi-time-twa/build/*.apk
-            medi-time-twa/build/*.aab
-          draft: false
-          prerelease: false
+          artifacts: "app-release-signed.apk"
+          tag: "release-${{ github.run_number }}"
+          token: ${{ secrets.GITHUB_TOKEN }}
